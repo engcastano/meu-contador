@@ -2,8 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Agora o código é 100% limpo e seguro.
-// O Vite substitui 'import.meta.env.VITE_...' pelo valor real NA HORA DO BUILD no servidor.
+// Configuração via Variáveis de Ambiente (Obrigatório para passar no scanner)
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -11,11 +10,17 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: "G-GFJ2NF9KYG"
+  measurementId: "G-GFJ2NF9KYG" // Esse ID não é sensível, pode ficar
 };
 
-const app = initializeApp(firebaseConfig);
+// Inicializa apenas se houver configuração válida, senão avisa no console
+let app;
+try {
+  app = initializeApp(firebaseConfig);
+} catch (error) {
+  console.error("Erro ao inicializar Firebase. Verifique as variáveis de ambiente.", error);
+}
 
-export const auth = getAuth(app);
+export const auth = app ? getAuth(app) : null as any;
 export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+export const db = app ? getFirestore(app) : null as any;
