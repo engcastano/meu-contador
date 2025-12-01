@@ -2,10 +2,10 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Transaction, CardTransaction, CardConfig, Account, Tag,
   FilterState, TabType, SharingRule, Partner, SharedAccount, SharingMode, BudgetTarget, User as UserType 
-} from '../types';
-import { generateUUID } from '../utils';
-import { MONTH_NAMES } from '../constants';
-import { Login } from '../Login';
+} from './types'; // ./types (mesma pasta)
+import { generateUUID } from './utils'; // ./utils (mesma pasta)
+import { MONTH_NAMES } from './constants'; // ./constants (mesma pasta)
+import { Login } from './Login';
 import { Dashboard } from './components/Dashboard';
 import Transactions from './components/Transactions'; 
 import { Cards } from './components/Cards';
@@ -24,6 +24,8 @@ export default function App() {
   const [user, setUser] = useState<UserType | null>(null);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  
+  const isHydrating = useRef(true);
   
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -211,16 +213,7 @@ export default function App() {
       showToast(`Categoria "${tagName}" criada!`);
   };
 
-  // -- HANDLERS GENÉRICOS DE SALVAMENTO PARA SETTINGS --
-  // Esses handlers recebem o objeto já modificado e salvam no Firestore
-  const handleSaveItem = (collectionName: string) => async (item: any) => {
-      if (!user?.id) return;
-      // Se o item vier com isNew, remove antes de salvar
-      const itemToSave = { ...item, userId: user.id };
-      delete itemToSave.isNew;
-      await saveData(user.id, collectionName, itemToSave);
-      showToast('Salvo!');
-  };
+  const handleSaveAccounts = async (newAccounts: any) => { console.warn("Use saveData para editar itens individuais"); };
 
   const hardDeleteAccount = (id: string) => requestConfirm('Excluir Conta', 'Apagar tudo?', async () => { 
       await deleteData(user!.id, getCollectionName('Accounts'), id);
@@ -261,7 +254,7 @@ export default function App() {
   const selectAllMonths = () => setFilters(p => ({ ...p, months: [0,1,2,3,4,5,6,7,8,9,10,11] }));
   const clearMonths = () => setFilters(p => ({ ...p, months: [] }));
 
-  // Filters Mobile Drawer Content
+  // Filters Content
   const FiltersContent = () => (
       <div className="space-y-6">
           <div><div className="flex justify-between items-center mb-2"><label className="text-xs text-slate-500 font-bold uppercase flex items-center gap-1"><Calendar size={12}/> Meses</label><div className="flex gap-1"><button onClick={selectAllMonths} className="text-[10px] text-blue-600 hover:underline">Todos</button><span className="text-[10px] text-slate-300">|</span><button onClick={clearMonths} className="text-[10px] text-slate-400 hover:underline">Limpar</button></div></div><div className="grid grid-cols-3 gap-2">{MONTH_NAMES.map((m, idx) => (<button key={m} onClick={() => toggleMonth(idx)} className={`text-xs py-2 rounded-md transition-colors ${filters.months.includes(idx) ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>{m}</button>))}</div></div>
@@ -306,36 +299,7 @@ export default function App() {
                 {activeTab === 'transactions' && <Transactions transactions={transactions} displayedTransactions={filteredTransactions} onSave={handleSaveTransaction} onDelete={handleDeleteTransaction} accounts={accounts} tags={tags} onAddTag={handleAddTag} onBulkEdit={handleBulkEditTransactions} onBulkDelete={handleDeleteTransactionsById} onImport={handleImport} onBulkDeleteByDate={() => {}} activeFilterAccount={filters.accountId} onFilterAccountChange={(id) => setFilters({...filters, accountId: id})} onBatchSave={handleBatchSaveTransactions}/>}
                 {activeTab === 'cards' && <Cards accounts={accounts} cardTransactions={cardTransactions} setCardTransactions={setCardTransactions} cardConfigs={cardConfigs} tags={tags} onAddTag={handleAddTag} onLaunchInvoice={handleLaunchInvoice} currentFilterYear={filters.year} currentFilterMonths={filters.months} onBulkDelete={handleDeleteCardTransactionsById} onBulkEdit={handleBulkEditCardTransactions} onImport={handleImportCard} sharedAccounts={sharedAccounts} sharingModes={sharingModes} onLaunchSharedInvoice={handleLaunchSharedInvoice} globalFilters={filters} onBatchSave={handleBatchSaveCardTransactions}/>}
                 {activeTab === 'shared' && <SharedFinances transactions={transactions} setTransactions={setTransactions} cardTransactions={cardTransactions} cardConfigs={cardConfigs} sharingModes={sharingModes} sharedAccounts={sharedAccounts} accounts={accounts} year={filters.year} months={filters.months} onLaunchSettlement={handleLaunchSettlement} onBulkEdit={handleBulkEditTransactions} onBulkDelete={handleDeleteTransactionsById} tags={tags} onAddTag={handleAddTag} globalFilters={filters} onBatchSave={handleBatchSaveTransactions}/>}
-                {activeTab === 'settings' && <Settings 
-                    accounts={accounts} 
-                    setAccounts={handleSaveItem(getCollectionName('Accounts'))} 
-                    onHardDeleteAccount={hardDeleteAccount} 
-                    tags={tags} 
-                    setTags={handleSaveItem(getCollectionName('Tags'))} 
-                    onDeleteTag={handleDeleteTag} 
-                    cardConfigs={cardConfigs} 
-                    setCardConfigs={handleSaveItem(getCollectionName('CardConfigs'))} 
-                    onHardDeleteCard={hardDeleteCard} 
-                    sharedAccounts={sharedAccounts} 
-                    setSharedAccounts={handleSaveItem(getCollectionName('SharedAccounts'))} 
-                    hardDeleteSharedAccount={hardDeleteShared} 
-                    sharingModes={sharingModes} 
-                    setSharingModes={handleSaveItem(getCollectionName('SharingModes'))} 
-                    hardDeleteMode={hardDeleteMode} 
-                    sharingRules={sharingRules} 
-                    setSharingRules={() => {}} 
-                    partners={partners} 
-                    setPartners={() => {}} 
-                    onDeletePartner={() => {}} 
-                    onConfirmImport={() => {}} 
-                    onBulkDelete={() => 0} 
-                    onToggleArchiveAccount={async (id) => { const acc = accounts.find(a=>a.id===id); if(acc) await saveData(user!.id, getCollectionName('Accounts'), {...acc, archived: !acc.archived}); }} 
-                    onToggleArchiveCard={async (id) => { const c = cardConfigs.find(x=>x.id===id); if(c) await saveData(user!.id, getCollectionName('CardConfigs'), {...c, archived: !c.archived}); }} 
-                    onToggleArchiveShared={async (id) => { const s = sharedAccounts.find(x=>x.id===id); if(s) await saveData(user!.id, getCollectionName('SharedAccounts'), {...s, archived: !s.archived}); }} 
-                    enabledModules={enabledModules} 
-                    setEnabledModules={setEnabledModules} 
-                    onSavePreferences={handleSavePreferences}
-                />}
+                {activeTab === 'settings' && <Settings accounts={accounts} setAccounts={handleSaveAccounts} onHardDeleteAccount={hardDeleteAccount} tags={tags} setTags={() => {}} onDeleteTag={handleDeleteTag} cardConfigs={cardConfigs} setCardConfigs={() => {}} onHardDeleteCard={hardDeleteCard} sharedAccounts={sharedAccounts} setSharedAccounts={() => {}} hardDeleteSharedAccount={hardDeleteShared} sharingModes={sharingModes} setSharingModes={() => {}} hardDeleteMode={hardDeleteMode} sharingRules={sharingRules} setSharingRules={() => {}} partners={partners} setPartners={() => {}} onDeletePartner={() => {}} onConfirmImport={() => {}} onBulkDelete={() => 0} onToggleArchiveAccount={async (id) => { const acc = accounts.find(a=>a.id===id); if(acc) await saveData(user!.id, getCollectionName('Accounts'), {...acc, archived: !acc.archived}); }} onToggleArchiveCard={async (id) => { const c = cardConfigs.find(x=>x.id===id); if(c) await saveData(user!.id, getCollectionName('CardConfigs'), {...c, archived: !c.archived}); }} onToggleArchiveShared={async (id) => { const s = sharedAccounts.find(x=>x.id===id); if(s) await saveData(user!.id, getCollectionName('SharedAccounts'), {...s, archived: !s.archived}); }} enabledModules={enabledModules} setEnabledModules={setEnabledModules} onSavePreferences={handleSavePreferences}/>}
              </div>
         </main>
       </div>
