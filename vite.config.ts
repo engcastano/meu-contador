@@ -7,10 +7,21 @@ export default defineConfig(({ mode }) => {
     return {
       server: {
         port: 3000,
-        host: '0.0.0.0',
+        // MODO ARQUITETO:
+        // Removi "host: '0.0.0.0'" que causa instabilidade no WebSocket no Windows.
+        // Adicionei configuração explícita de HMR para garantir o Hot Reload.
+        hmr: {
+            host: 'localhost',
+            port: 3000,
+        },
+        watch: {
+          // Garante que o Windows detecte alterações nos arquivos
+          usePolling: true,
+        }
       },
       plugins: [react()],
       define: {
+        // Mantém suas variáveis de ambiente funcionais
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
       },
