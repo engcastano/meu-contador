@@ -213,31 +213,44 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
       }).sort((a,b) => b.value - a.value);
   }, [transactions, year, selectedMonth, categories, partners]);
 
-  // --- CLIENTES (ATIVOS) ---
+  // --- CLIENTES (ATIVOS: ORÇAMENTO vs FATURADO) ---
   const activeClientInsights = useMemo(() => {
     return clients.map(client => {
       const clientInvoices = invoices.filter(i => i.clientId === client.id && i.status !== 'cancelled');
-      const clientProjects = projects.filter(p => p.clientId === client.id && p.status !== 'pending' && p.status !== 'cancelled'); // Projetos não-pendentes (Ativos/Concluidos)
+      
+      const clientProjects = projects.filter(p => 
+          p.clientId === client.id && 
+          p.status !== 'pending' && 
+          p.status !== 'cancelled'
+      );
 
       const totalFaturado = clientInvoices.reduce((acc, i) => acc + getInvoiceValue(i), 0);
-      const emProducao = clientProjects.reduce((acc, p) => acc + safeFloat(p.value), 0);
+      const totalOrcamento = clientProjects.reduce((acc, p) => acc + safeFloat(p.value), 0);
       
-      const totalVolume = totalFaturado + emProducao;
-      // % de "Captura de Valor": Quanto do volume total já foi faturado
-      const billingProgress = totalVolume > 0 ? (totalFaturado / totalVolume) * 100 : 0;
+      const billingProgress = totalOrcamento > 0 ? (totalFaturado / totalOrcamento) * 100 : 0;
+      const backlog = totalOrcamento - totalFaturado;
 
       return { 
           id: client.id, 
           name: client.name, 
           totalFaturado, 
-          emProducao, 
-          totalVolume,
-          billingProgress
+          totalOrcamento, 
+          billingProgress,
+          backlog
       };
     })
-    .filter(c => c.totalVolume > 0) // Mostra apenas quem tem movimentação
+    .filter(c => c.totalOrcamento > 0 || c.totalFaturado > 0)
     .sort((a, b) => b.totalFaturado - a.totalFaturado);
   }, [clients, invoices, projects]);
+
+  // --- CALCULA TOTALIZADORES DE CLIENTES ---
+  const activeClientsTotals = useMemo(() => {
+      return activeClientInsights.reduce((acc, curr) => ({
+          orcamento: acc.orcamento + curr.totalOrcamento,
+          faturado: acc.faturado + curr.totalFaturado,
+          backlog: acc.backlog + curr.backlog
+      }), { orcamento: 0, faturado: 0, backlog: 0 });
+  }, [activeClientInsights]);
 
   // --- PIPELINE (PROPOSTAS) ---
   const pipelineInsights = useMemo(() => {
@@ -495,9 +508,10 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                   <thead className="bg-slate-50 dark:bg-slate-900/50 text-xs uppercase text-slate-500 font-bold">
                       <tr>
                           <th className="p-4">Cliente</th>
-                          <th className="p-4 text-right">Total Faturado</th>
-                          <th className="p-4 text-right">Em Produção (Backlog)</th>
-                          <th className="p-4 w-40">Progresso Financeiro</th>
+                          <th className="p-4 text-right">Orçamento</th>
+                          <th className="p-4 text-right">Faturado</th>
+                          <th className="p-4 text-center">Progresso</th>
+                          <th className="p-4 text-right">Backlog (Saldo)</th>
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -512,29 +526,46 @@ export const BusinessDashboard: React.FC<BusinessDashboardProps> = ({
                                           {client.name}
                                       </div>
                                   </td>
+                                  <td className="p-4 text-right font-medium text-slate-600 dark:text-slate-300">
+                                      {parseCurrency(client.totalOrcamento)}
+                                  </td>
                                   <td className="p-4 text-right font-bold text-emerald-600">
                                       {parseCurrency(client.totalFaturado)}
                                   </td>
-                                  <td className="p-4 text-right font-medium text-slate-600 dark:text-slate-300">
-                                      {parseCurrency(client.emProducao)}
-                                  </td>
                                   <td className="p-4">
-                                      <div className="flex flex-col gap-1">
-                                          <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                                              <span>{client.billingProgress.toFixed(0)}% Faturado</span>
+                                      <div className="flex flex-col gap-1 items-center">
+                                          <div className="w-32 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                              <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{width: `${Math.min(client.billingProgress, 100)}%`}}></div>
                                           </div>
-                                          <div className="w-full h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                              <div className="h-full bg-blue-500 rounded-full" style={{width: `${client.billingProgress}%`}}></div>
-                                          </div>
+                                          <span className="text-[10px] font-bold text-slate-500">{client.billingProgress.toFixed(0)}%</span>
                                       </div>
+                                  </td>
+                                  <td className="p-4 text-right font-bold text-slate-700 dark:text-slate-300">
+                                      {parseCurrency(client.backlog)}
                                   </td>
                               </tr>
                           )
                       })}
                       {activeClientInsights.length === 0 && (
-                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhum cliente ativo ou com faturamento no período.</td></tr>
+                          <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhum cliente ativo ou com faturamento no período.</td></tr>
                       )}
                   </tbody>
+                  {/* FOOTER COM TOTAIS */}
+                  {activeClientInsights.length > 0 && (
+                      <tfoot className="bg-slate-50 dark:bg-slate-900/50 border-t-2 border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white">
+                          <tr>
+                              <td className="p-4 uppercase text-xs">Total Geral</td>
+                              <td className="p-4 text-right text-slate-600 dark:text-slate-300">{parseCurrency(activeClientsTotals.orcamento)}</td>
+                              <td className="p-4 text-right text-emerald-600">{parseCurrency(activeClientsTotals.faturado)}</td>
+                              <td className="p-4 text-center text-xs text-slate-500">
+                                  {activeClientsTotals.orcamento > 0 
+                                      ? ((activeClientsTotals.faturado / activeClientsTotals.orcamento) * 100).toFixed(0) + '%' 
+                                      : '-'}
+                              </td>
+                              <td className="p-4 text-right text-slate-700 dark:text-slate-300">{parseCurrency(activeClientsTotals.backlog)}</td>
+                          </tr>
+                      </tfoot>
+                  )}
               </table>
           </div>
       </div>
