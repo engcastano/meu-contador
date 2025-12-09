@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './index.css'; // <--- ESTA LINHA É OBRIGATÓRIA PARA O TAILWIND FUNCIONAR
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

@@ -1,103 +1,72 @@
-// Interface Base para recursos que têm dono
-export interface UserOwned {
-  userId?: string;
-}
+import { UserOwned } from './types';
 
-// --- MODO PESSOAL (MANTIDO INTACTO) ---
+// --- NOVOS TIPOS PARA FLUXO DE CAIXA (BUSINESS ACCOUNTING) ---
 
-export interface Transaction extends UserOwned {
-  id: string;
-  description: string;
-  value: number;
-  dateExpected: string; // YYYY-MM-DD
-  dateRealized: string; // YYYY-MM-DD or empty
-  account: string;
-  category: string; 
-  type: string;
-  isRealized: boolean;
-  isShared?: boolean;
-  paidBy?: string;
-  sharingModeId?: string;
-  customSplit?: { myPercentage: number; partnerPercentage: number; };
-  excludeFromBudget?: boolean;
-}
+export type AccountType = 'checking' | 'investment' | 'credit_card' | 'cash';
 
-export interface CardTransaction extends UserOwned {
-  id: string;
-  dateInvoice: string; 
-  datePurchase: string; 
-  description: string;
-  value: number;
-  type: string;
-  cardName: string;
-  paidBy?: string; 
-  sharingModeId?: string; 
-  installment?: { current: number; total: number; groupId: string; };
-}
-
-export interface CardConfig extends UserOwned {
+export interface BusinessAccount extends UserOwned {
   id: string;
   name: string;
-  closingDay: number;
-  dueDay: number;
-  limit?: number;
-  archived: boolean;
-  isShared?: boolean;
-  linkedSharedAccountId?: string;
-  cardNumber?: string;
-  cvv?: string;
-  expiry?: string;
-  password?: string;
-  color?: string;
-}
-
-export interface Account extends UserOwned {
-  id: string;
-  name: string;
-  archived: boolean;
+  type: AccountType;
+  
+  // Bancário Padrão
   bank?: string;
   agency?: string;
-  number?: string;
-  pixKey?: string;
+  accountNumber?: string;
+  
+  // Específico Cartão de Crédito
+  closingDay?: number;
+  dueDay?: number;
+  limit?: number;
+  
+  // Específico Investimento
+  yieldRate?: string; // Ex: "100% CDI"
+  liquidity?: 'daily' | 'maturity';
+  dueDate?: string; // Data de vencimento da aplicação
+
+  initialBalance: number;
+  currentBalance: number; // Calculado (Saldo Inicial + Transações)
   color?: string;
+  archived?: boolean;
 }
 
-export interface SharedAccount extends UserOwned {
+export interface BusinessCategory extends UserOwned {
   id: string;
   name: string;
-  partnerName: string;
-  partnerPix?: string;
-  partnerBank?: string;
-  partnerAgency?: string;
-  partnerAccount?: string;
-  archived: boolean;
-}
-
-export interface SharingMode extends UserOwned {
-  id: string;
-  name: string;
-  myPercentage: number;
-  partnerPercentage: number;
-  color?: string;
-}
-
-export interface Tag extends UserOwned {
-  id?: string; 
-  name: string;
-  color: string;
-}
-
-export interface BudgetTarget extends UserOwned {
-  id: string;
-  month: number; 
-  year: number;
-  groupId: string;
-  category: string;
-  value: number;
   type: 'income' | 'expense';
+  // NOVO: 'productive_society' para a nova camada de gastos
+  subtype?: 'cost' | 'expense' | 'movement' | 'productive_society'; 
+  color?: string;
 }
 
-// --- MODO EMPRESARIAL (REFATORADO E EXPANDIDO) ---
+export interface BusinessTransaction extends UserOwned {
+  id: string;
+  description: string;
+  value: number;        
+  date: string;         // Data de competência/vencimento
+  datePaid?: string;    // Data de liquidação (Realizado)
+  
+  accountId: string;    // Conta vinculada
+  accountName?: string; // Desnormalizado para facilitar visualização
+  
+  categoryId: string;
+  categoryName?: string;
+  
+  status: 'pending' | 'paid' | 'scheduled' | 'overdue';
+  type: 'income' | 'expense' | 'transfer';
+  
+  // --- VINCULAÇÕES ESTRATÉGICAS ---
+  invoiceId?: string;       // Vinculo com Nota Fiscal
+  taxObligationId?: string; // Vinculo com Imposto (DAS/DARF)
+  clientId?: string;        // Vinculo com Cliente (Receita)
+  projectId?: string;       // Vinculo com Projeto (Centro de Custo)
+  partnerId?: string;       // Vinculo com Colaborador/Sócio (Pagamentos/Adiantamentos)
+  
+  notes?: string;
+  attachmentUrl?: string;
+}
+
+// --- TIPOS EXISTENTES (CRM, PROJETOS, NOTAS) ---
 
 export interface Client extends UserOwned {
   id: string;
@@ -136,6 +105,7 @@ export interface BusinessInvoice extends UserOwned {
   paymentDate?: string; 
   pdfUrl?: string;      
   xmlUrl?: string;      
+  isTaxable?: boolean; 
 }
 
 export interface TaxObligation extends UserOwned {
@@ -151,20 +121,6 @@ export interface TaxObligation extends UserOwned {
   status: 'pending' | 'paid' | 'overdue';
   paymentDate?: string;
   linkedInvoiceIds?: string[]; 
-}
-
-export interface BusinessTransaction extends UserOwned {
-  id: string;
-  description: string;
-  value: number;        
-  date: string;         
-  datePaid?: string;    
-  category: string;     
-  invoiceId?: string;   
-  taxObligationId?: string; 
-  clientId?: string;    
-  status: 'pending' | 'paid';
-  notes?: string;
 }
 
 // --- PROJETOS E TAREFAS ---
@@ -280,7 +236,7 @@ export interface TaxMonthSummary {
   }
 }
 
-// --- MODO INVESTIMENTOS ---
+// --- TIPOS DE INVESTIMENTOS ---
 
 export type InvestmentType = 'fixed' | 'stock' | 'fii' | 'crypto' | 'treasury' | 'other';
 
@@ -296,44 +252,36 @@ export interface Investment extends UserOwned {
   color?: string;
 }
 
-// --- USUÁRIO ---
+// --- TIPOS DE SUPORTE E LEGADOS ---
 
-export interface User {
-  id: string;
-  username: string;
-  password: string;
-  role?: 'admin' | 'user';
-  archived?: boolean;
-  email?: string;
-  lastAccess?: string;
-  birthDate?: string; // NOVO CAMPO
-  preferences?: any; 
+export interface InvoiceTaxes {
+  iss: { amount: number; rate: number; retained: boolean };
+  irrf: { amount: number; rate: number; retained: boolean };
+  pis: { amount: number; rate: number; retained: boolean };
+  cofins: { amount: number; rate: number; retained: boolean };
+  csll: { amount: number; rate: number; retained: boolean };
+  inss: { amount: number; rate: number; retained: boolean };
 }
 
-export interface FilterState {
-  year: number;
-  months: number[]; 
-  accountId: string | 'all' | 'shared_view'; 
-  viewMode: 'accounts' | 'cards' | 'shared'; 
-  status: 'all' | 'realized' | 'predicted' | 'open' | 'closed';
-  category: string | 'all';
-  responsible: string | 'all';
-}
-
-export type TabType = 'dashboard' | 'transactions' | 'cards' | 'settings' | 'shared' | 'budget' | 'business' | 'investments';
-
-export interface SharingRule { category: string; myPercentage: number; partnerPercentage: number; }
-export interface Partner { id: string; name: string; pixKey?: string; }
-
-export enum TransactionStatus {
-  REALIZED = 'Realizado',
-  PREDICTED = 'Previsto',
-  DELAYED = 'Atrasado',
-}
-
-export interface CompanyScope {
-  id: string; 
-  name: string;
-  role: 'admin' | 'partner' | 'collaborator';
-  isOwner: boolean;
+export interface ServiceInvoice extends UserOwned {
+    id: string;
+    number: number;
+    issueDate: string;
+    description: string;
+    amount: number;
+    status: 'issued' | 'paid' | 'cancelled';
+    clientName?: string;
+    clientId?: string;
+    projectName?: string;
+    projectId?: string;
+    isTaxable?: boolean;
+    taxes?: any; // Compatibilidade com estrutura legada
+    serviceCode?: string;
+    notes?: string;
+    month?: string;
+    paymentData?: any;
+    retention?: any;
+    cnpj?: string;
+    netValue?: number;
+    verificationCode?: string;
 }
